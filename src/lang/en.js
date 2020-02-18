@@ -37,6 +37,7 @@ export default {
 	requestTcpIntervalPlaceholder: 'Time interval to send(MS)',
 	requestIntervalTips: 'Interval must be greater than 1 ms',
 	statisticsInfo: 'Request {average} times every {interval} ms, {count} times in total, max connection {conn} , cumulative request {sum} times',
+	statisticsWsTcpInfo: 'Open {count} connections, send requests {average} times per connection, Every request is {interval} ms apart, cumulative request {sum} times',
 	requestConfigPrintInfo: 'Print response log',
 	requestConfigPrintInfoTips: 'A large number of request printing response logs, very test the performance of the browser, please choose carefully!',
 	requestConfigTimeout: 'Timeout(ms)',

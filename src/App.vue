@@ -182,7 +182,7 @@
 							</div>
 							<div style="margin-right: 0.6rem;"><el-input :placeholder="$t('requestConfigTimeout')" type="number" v-model.number="requestConfig.timeout"></el-input></div>
 							<div style="margin-right: 0.6rem;"><el-checkbox v-model="requestConfig.keepAlive" :label="$t('requestConfigKeepAlive')"></el-checkbox></div>
-							<div style="flex: 1;" v-show="requestConfig.keepAlive">
+							<div style="flex: 1;" v-show="requestConfig.keepAlive && requestData.requestType == 'HTTP'">
 								<el-input :placeholder="$t('requestConfigPoolSize')" type="number" v-model.number="requestConfig.poolSize"></el-input>
 							</div>
 						</div>
@@ -397,7 +397,7 @@ export default {
 		isShowStatistics() {
 			if (this.requestData.count > 0 && this.requestData.average > 0 && this.requestData.interval > 0) {
 				this.isStatistics = true;
-				this.statisticsInfo = this.$t('statisticsInfo')
+				this.statisticsInfo = (this.requestData.requestType==REQUEST_TYPE_HTTP? this.$t('statisticsInfo'):this.$t('statisticsWsTcpInfo'))
 					.replace('{interval}', this.requestData.interval)
 					.replace('{average}', this.requestData.average)
 					.replace('{count}', this.requestData.count)

@@ -37,6 +37,7 @@ export default {
 	requestTcpIntervalPlaceholder: '发送内容的时间间隔(毫秒)',
 	requestIntervalTips: '间隔必须大于1毫秒',
 	statisticsInfo: '每{interval}毫秒请求{average}次, 共执行{count}次,最大建立连接{conn}, 累计请求{sum}次',
+	statisticsWsTcpInfo: '建立连接{count}, 每个连接发送{average}次请求, 每次请求间隔{interval}毫秒, 累计发送请求{sum}次',
 	requestConfigPrintInfo: '打印响应日志',
 	requestConfigPrintInfoTips: '大量的请求打印响应日志,很考验浏览器的性能,请谨慎选择!',
 	requestConfigTimeout: '请求超时(ms)',
