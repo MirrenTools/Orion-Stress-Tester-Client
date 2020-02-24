@@ -175,11 +175,7 @@
 					<el-form-item v-show="isStatistics">{{ statisticsInfo }}</el-form-item>
 					<el-form-item>
 						<div style="display: flex;flex-wrap: wrap;">
-							<div style="margin-right: 0.6rem">
-								<el-tooltip class="item" effect="dark" :content="$t('requestConfigPrintInfoTips')" placement="top">
-									<el-checkbox v-model="requestConfig.printResInfo" :label="$t('requestConfigPrintInfo')"></el-checkbox>
-								</el-tooltip>
-							</div>
+							<div style="margin-right: 0.6rem"><el-checkbox v-model="requestConfig.printResInfo" :label="$t('requestConfigPrintInfo')"></el-checkbox></div>
 							<div style="margin-right: 0.6rem;"><el-input :placeholder="$t('requestConfigTimeout')" type="number" v-model.number="requestConfig.timeout"></el-input></div>
 							<div style="margin-right: 0.6rem;"><el-checkbox v-model="requestConfig.keepAlive" :label="$t('requestConfigKeepAlive')"></el-checkbox></div>
 							<div style="flex: 1;" v-show="requestConfig.keepAlive && requestData.requestType == 'HTTP'">
@@ -188,6 +184,7 @@
 						</div>
 					</el-form-item>
 					<el-form-item>
+						<div v-if="requestConfig.printResInfo && requestData.count * requestData.average > printShowLimit">{{ $t('requestConfigPrintInfoTips') }}</div>
 						<el-button type="primary" :loading="isExecuting" @click="execute">{{ isExecuting ? $t('btnIsExecute') : $t('btnExecute') }}</el-button>
 						<el-button v-show="isExecuting" @click="executeCancel">{{ $t('btnCancel') }}</el-button>
 					</el-form-item>
@@ -291,6 +288,8 @@ const WS_COMMAND_BEFORE_REQUEST_TEST = 2;
 const WS_COMMAND_TEST_RESPONSE = 3;
 /** 日志输出 */
 const WS_COMMAND_TEST_LOG_RESPONSE = 4;
+/** 测试任务提交进度 */
+const WS_COMMAND_TEST_SUBMIT_PROGRESS = 5;
 /** 任务已完成 */
 const WS_COMMAND_TEST_COMPLETE = 99;
 /** 缺少请求参数或存在无效的请求参数 */
@@ -312,6 +311,8 @@ export default {
 			isExecuting: false,
 			//是否已经执行过
 			isExecuted: false,
+			//是否打印响应内容的选中的开启或关闭条件
+			printShowLimit: 5000,
 			//请求设置
 			requestConfig: {
 				//是否打印响应内容
@@ -387,7 +388,9 @@ export default {
 				freeMemory: 0
 			},
 			//连接服务器的WebSocket
-			websocket: null
+			websocket: null,
+			//日志输出信息
+			consoleInfos: []
 		};
 	},
 	methods: {
@@ -397,7 +400,7 @@ export default {
 		isShowStatistics() {
 			if (this.requestData.count > 0 && this.requestData.average > 0 && this.requestData.interval > 0) {
 				this.isStatistics = true;
-				this.statisticsInfo = (this.requestData.requestType==REQUEST_TYPE_HTTP? this.$t('statisticsInfo'):this.$t('statisticsWsTcpInfo'))
+				this.statisticsInfo = (this.requestData.requestType == REQUEST_TYPE_HTTP ? this.$t('statisticsInfo') : this.$t('statisticsWsTcpInfo'))
 					.replace('{interval}', this.requestData.interval)
 					.replace('{average}', this.requestData.average)
 					.replace('{count}', this.requestData.count)
@@ -526,16 +529,18 @@ export default {
 					this.isExecuting = true; //修改是否在执行状态,执行中
 					this.isExecuted = true; //标记前端控制台状态为已执行
 					var connectMsg = this.$t('consoleConnecting');
-					this.consolePrintInfo(LOG_INFO, connectMsg);
+					this.addConsoleInfo(LOG_INFO, connectMsg);
+					this.showConsoleInfo();
 					//连接WebSocket并在open后请求数据
-					var wshost=process.env.VUE_APP_BASE_API;
-					if(wshost==null || wshost=='wlhost'){
-						wshost=window.location.host;
+					var wshost = process.env.VUE_APP_BASE_API;
+					if (wshost == null || wshost == 'wlhost') {
+						wshost = window.location.host;
 					}
-					this.websocket = new WebSocket('ws://'+wshost+'/ws/ost');
+					this.websocket = new WebSocket('ws://' + wshost + '/ws/ost');
 					this.websocket.onopen = () => {
 						var connected = this.$t('consoleConnected');
-						this.consolePrintInfo(LOG_SUCCESS, connected);
+						this.addConsoleInfo(LOG_SUCCESS, connected);
+						this.showConsoleInfo();
 						var trData = this.requestData;
 						//初始化默认数据
 						this.clearToDefaultData();
@@ -595,7 +600,7 @@ export default {
 							for (var i = 0; i < trData.headers.length; i++) {
 								var h = trData.headers[i];
 								if (h.key.trim() != '' && h.value.trim() != '') {
-									headers.push(h.trim());
+									headers.push(h);
 								}
 							}
 							if (headers.length > 0) {
@@ -624,17 +629,23 @@ export default {
 						var body = { code: WS_COMMAND_SUBMIT_TEST, data: reqData };
 						this.websocket.send(JSON.stringify(body));
 					};
-
+					//异常事件
 					this.websocket.onerror = err => {
 						console.log('Connection error:');
 						console.log(err);
 						this.isExecuting = false; //修改是否在执行状态,执行结束
-						this.consolePrintInfo(LOG_ERROR, this.$t('consoleConnectFailed'));
+						this.addConsoleInfo(LOG_ERROR, this.$t('consoleConnectFailed'));
+						this.showConsoleInfo();
 					};
+					//每一秒钟显示控制台信息
+					var showLogs = setInterval(() => {
+						this.showConsoleInfo();
+					}, 1000);
 					//关闭事件
 					this.websocket.onclose = () => {
+						window.clearInterval(showLogs);
+						this.showConsoleInfo(1);
 						this.isExecuting = false; //修改是否在执行状态,执行结束
-
 						console.log(this.$t('consoleClosed'));
 					};
 					//响应事件
@@ -644,14 +655,17 @@ export default {
 						// console.log(data);
 						if (data.code == WS_COMMAND_INVALID_PARAMETER) {
 							//缺少参数或取消参数的响应
-							this.consolePrintInfo(LOG_ERROR, this.$t('commandInvalidParameter') + data.msg);
+							this.addConsoleInfo(LOG_ERROR, this.$t('commandInvalidParameter') + data.msg);
+							this.showConsoleInfo();
 							this.websocket.close();
 						} else if (data.code == WS_COMMAND_BEFORE_REQUEST_TEST) {
 							//提交测试前的测试响应
 							if (data.data == 1) {
-								this.consolePrintInfo(LOG_SUCCESS, this.$t('commandBeforeRequestTestSucceeded'));
+								this.addConsoleInfo(LOG_SUCCESS, this.$t('commandBeforeRequestTestSucceeded'));
+								this.showConsoleInfo();
 							} else {
-								this.consolePrintInfo(LOG_ERROR, this.$t('commandBeforeRequestTestFailed') + data.msg);
+								this.addConsoleInfo(LOG_ERROR, this.$t('commandBeforeRequestTestFailed') + data.msg);
+								this.showConsoleInfo();
 								this.websocket.close();
 							}
 						} else if (data.code == WS_COMMAND_JVM_METRIC) {
@@ -675,8 +689,14 @@ export default {
 								msg += ', ' + this.$t('commandTestResponseBody').replace('{body}', resData.body);
 							}
 							if (this.requestConfig.printResInfo) {
-								this.consolePrintInfo(LOG_INFO, msg);
+								this.addConsoleInfo(LOG_INFO, msg);
 							}
+						} else if (data.code == WS_COMMAND_TEST_SUBMIT_PROGRESS) {
+							//显示任务进度
+							var resData = data.data;
+							var msg = this.$t('commandTestSubmitted').replace('{count}', resData.count);
+							this.addConsoleInfo(LOG_SUCCESS, msg);
+							this.showConsoleInfo();
 						} else if (data.code == WS_COMMAND_TEST_RESPONSE) {
 							//测试统计信息响应
 							var resData = data.data;
@@ -726,7 +746,8 @@ export default {
 							//获取处理已失败数量
 							this.responseFailed = resData.failed;
 						} else if (data.code == WS_COMMAND_TEST_COMPLETE) {
-							this.consolePrintInfo(LOG_SUCCESS, this.$t('commandTestComplete'));
+							this.addConsoleInfo(LOG_SUCCESS, this.$t('commandTestComplete'));
+							this.showConsoleInfo();
 						}
 					};
 					this.$nextTick(() => {
@@ -744,7 +765,12 @@ export default {
 				this.websocket.close();
 			}
 		},
-		consolePrintInfo(log, msg) {
+		/**
+		 * 添加控制台打印信息
+		 * @param {信息类型} log 对应LOG_*
+		 * @param {信息} msg
+		 */
+		addConsoleInfo(log, msg) {
 			var time = new Date()
 				.toISOString()
 				.replace('T', ' ')
@@ -764,10 +790,35 @@ export default {
 			msgEl.style.marginTop = '3px';
 			msgEl.innerText = msg;
 			el.appendChild(msgEl);
-			document.getElementById('response-body').appendChild(el);
-			this.$nextTick(() => {
-				this.$refs.responseConsoleBody.scrollTop = this.$refs.responseConsoleBody.scrollHeight;
-			});
+			this.consoleInfos.push(el);
+		},
+		/**
+		 * 显示控制台信息
+		 * @param {Object} all 是否显示完全部,1=显示完全部,其他不显示完全部
+		 */
+		showConsoleInfo(all) {
+			if (all == 1) {
+				const fragment = document.createDocumentFragment();
+				for (var i = 0; i < this.consoleInfos.length; i++) {
+					var el = this.consoleInfos.shift();
+					fragment.appendChild(el);
+				}
+				const dom = document.getElementById('response-body');
+				dom.appendChild(fragment);
+				dom.scrollTop = dom.scrollHeight;
+			} else if (this.consoleInfos.length > 0) {
+				const fragment = document.createDocumentFragment();
+				for (var i = 0; i < 1000; i++) {
+					if (this.consoleInfos.length == 0) {
+						break;
+					}
+					var el = this.consoleInfos.shift();
+					fragment.appendChild(el);
+				}
+				const dom = document.getElementById('response-body');
+				dom.appendChild(fragment);
+				dom.scrollTop = dom.scrollHeight;
+			}
 		}
 	},
 	watch: {
@@ -790,7 +841,7 @@ export default {
 			}
 		},
 		'requestData.count'() {
-			if (this.requestData.count * this.requestData.average > 10000) {
+			if (this.requestData.count * this.requestData.average > this.printShowLimit) {
 				this.requestConfig.printResInfo = false;
 			} else {
 				this.requestConfig.printResInfo = true;
@@ -798,7 +849,7 @@ export default {
 			this.isShowStatistics();
 		},
 		'requestData.average'() {
-			if (this.requestData.count * this.requestData.average > 10000) {
+			if (this.requestData.count * this.requestData.average > this.printShowLimit) {
 				this.requestConfig.printResInfo = false;
 			} else {
 				this.requestConfig.printResInfo = true;
