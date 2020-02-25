@@ -296,6 +296,8 @@ const WS_COMMAND_TEST_COMPLETE = 99;
 const WS_COMMAND_INVALID_PARAMETER = 412;
 /** 失败响应 */
 const WS_COMMAND_ERROR = 500;
+/** 超过GC开销限制:501 */
+const WS_COMMAND_GC_OVERHEAD_LIMIT = 501;
 /** 失败响应 */
 const WS_COMMAND_JVM_METRIC = 1000;
 
@@ -668,7 +670,13 @@ export default {
 								this.showConsoleInfo();
 								this.websocket.close();
 							}
+						} else if (data.code == WS_COMMAND_GC_OVERHEAD_LIMIT) {
+							//服务器超过GC开销限制,无法继续工作
+							this.addConsoleInfo(LOG_ERROR, this.$t('commandGcOverheadLimit'));
+							this.showConsoleInfo();
+							this.websocket.close();
 						} else if (data.code == WS_COMMAND_JVM_METRIC) {
+							//服务器性能
 							var rd = data.data;
 							this.serverMetrics.processors = rd.processors;
 							this.serverMetrics.totalMemory = this.toFixed(rd.totalMemory / 1048576, 5);

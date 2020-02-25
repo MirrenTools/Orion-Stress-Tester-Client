@@ -79,6 +79,7 @@ export default {
 	commandTestResponseEndTime: 'Response time:{endTime} ms',
 	commandTestResponseBody: 'Response:{body}',
 	commandInvalidParameter: 'Invalid request parameter or missing required parameter, console response information:',
+	commandGcOverheadLimit: 'Console stopped working over GC overhead,please restart the software and increase the JVM memory!',
 	commandBeforeRequestTestSucceeded: 'Pre test for request succeeded, test in progress...',
 	commandBeforeRequestTestFailed: 'Pre test  request failed: please check if your service is available, console response information:',
 	commandTestComplete: 'Test completed!',

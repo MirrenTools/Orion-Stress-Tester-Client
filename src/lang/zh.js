@@ -79,6 +79,7 @@ export default {
 	commandTestResponseEndTime: '响应用时:{endTime} ms',
 	commandTestResponseBody: '响应信息:{body}',
 	commandInvalidParameter: '无效的请求参数或缺失必填的参数,控制台响应信息:',
+	commandGcOverheadLimit: '控制台超过GC开销已停止工作,请重启软件并调大JVM内存!',
 	commandBeforeRequestTestSucceeded: '进行请求前测成功,正在进行测试...',
 	commandBeforeRequestTestFailed: '进行请求前测试失败:请检查你的服务是否可用,控制台响应信息:',
 	commandTestComplete: '操作已完成!',
